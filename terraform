@@ -1,0 +1,74 @@
+provider "aws" {
+  version = "~> 2.0"
+  region  = "ap-south-1"
+}
+resource "aws_vpc" "myvpc" {
+   cidr_block       = "10.0.0.0/16"
+
+  tags = {
+    Name = "terraformvpc"
+  }
+}
+resource "aws_subnet" "pubsub" {
+   vpc_id     = "${aws_vpc.myvpc.id}"
+  cidr_block = "10.0.1.0/24"
+
+  tags = {
+    Name = "publicsubnet"
+  }
+}
+resource "aws_subnet" "privsub" {
+   vpc_id     = "${aws_vpc.myvpc.id}"
+  cidr_block = "10.0.2.0/24"
+
+  tags = {
+    Name = "privatesubnet"
+  }
+}
+resource "aws_internet_gateway" "tigw" {
+  vpc_id = "${aws_vpc.myvpc.id}"
+
+  tags = {
+    Name = "IGW"
+  }
+}
+resource "aws_route_table" "pubrt" {
+  vpc_id = "${aws_vpc.myvpc.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = "${aws_internet_gateway.tigw.id}"
+  }
+
+  tags = {
+    Name = "publicRT"
+  }
+}
+resource "aws_route_table_association" "pubassoc" {
+  subnet_id      = "${aws_subnet.pubsub.id}"
+  route_table_id = "${aws_route_table.pubrt.id}"
+}
+resource "aws_eip" "eip" {
+  vpc = true
+}
+resource "aws_nat_gateway" "tnat" {
+   allocation_id = "${aws_eip.eip.id}"
+  subnet_id     = "${aws_subnet.pubsub.id}"
+}
+
+resource "aws_route_table" "privrt" {
+  vpc_id = "${aws_vpc.myvpc.id}"
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = "${aws_nat_gateway.tnat.id}"
+  }
+
+  tags = {
+    Name = "privateRT"
+  }
+}
+resource "aws_route_table_association" "privassoc" {
+  subnet_id      = "${aws_subnet.privsub.id}"
+  route_table_id = "${aws_route_table.privrt.id}"
+}
